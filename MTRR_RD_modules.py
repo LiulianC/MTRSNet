@@ -269,14 +269,6 @@ class Toning(nn.Module):
 
 class Mapping(nn.Module):
     def __init__(self, in_features=3, hidden_features=256, hidden_layers=3, out_features=3, res=True):
-        """
-        Parameters:
-            in_features (int): Number of input features (channels).
-            hidden_features (int): Number of features in hidden layers.
-            hidden_layers (int): Number of hidden layers.
-            out_features (int): Number of output features (channels).
-            res (bool): Whether to use residual connections.
-        """
         super(Mapping, self).__init__()
 
         self.res = res

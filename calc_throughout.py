@@ -69,11 +69,6 @@ def build_test_loader(
 
 @torch.no_grad()
 def measure_throughput(engine: MTRREngine, loader: DataLoader, warmup: int = 50, iters: int = 30):
-    """
-    与你的伪代码完全一致，但将 `model(images)` 替换为真实推理路径：
-      engine.set_input(batch); engine.inference()
-    一次迭代处理 batch_size 张图，因此吞吐量 = iters * batch_size / 耗时。
-    """
     assert torch.cuda.is_available(), "需要 CUDA 设备进行吞吐量测试。"
     device = torch.device("cuda")
     cudnn.benchmark = True

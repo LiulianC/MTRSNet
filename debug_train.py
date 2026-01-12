@@ -39,10 +39,6 @@ else:
     print("No checkpoint found, using random initialization")
 
 def monitor_all_layers_independently(model):
-    """
-    独立监控所有层的 forward 输出，包括展开 Mamba 变体的内部层
-    不依赖于 MTRRNet.py 的 monitor_layer_stats()
-    """
     hooks = []
 
     def make_hook(layer_name):

@@ -1,11 +1,5 @@
 class EarlyStopping:
     def __init__(self, patience=15, delta=0, verbose=False):
-        """
-        Args:
-            patience (int): 允许验证集损失不下降的轮次，默认5
-            delta (float):  认为有提升的最小变化阈值，默认0
-            verbose (bool): 是否打印早停信息，默认False
-        """
         self.patience = patience
         self.delta = delta
         self.verbose = verbose

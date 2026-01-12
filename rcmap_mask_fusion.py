@@ -4,19 +4,6 @@ from torchvision.utils import save_image
 import os
 
 def apply_rcmap_mask_and_skip(test_imgs, test_fake_Ts, test_rcmaps, threshold=10):
-    """
-    应用RCMap掩码并将结果覆盖到原图像上
-    
-    Args:
-    数字0~1范围内
-        test_imgs: 原始图像, 形状为 [B, 3, H, W]
-        test_fake_Ts: 预测结果列表, test_fake_Ts 形状为 [B, 3, H, W]
-        test_rcmaps: RCMap灰度图, 形状为 [B, 1, H, W]
-        threshold: 二值化阈值, 默认30/255
-    
-    Returns:
-        AdditionSkip: 最终结果, 形状为 [B, 3, H, W]
-    """
     device = test_imgs.device
     test_fake_T3 = test_fake_Ts.to(device)
     test_rcmaps = test_rcmaps.to(device)

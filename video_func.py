@@ -22,23 +22,6 @@ args = parser.parse_args()
 default_fps = 30
 
 def read_frames_from_video(video_path, target_size=None):
-    """从视频读取所有帧，并可选统一大小"""
-    cap = cv2.VideoCapture(video_path)
-    frames = []
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  
-        img = Image.fromarray(frame)
-        if target_size is not None:
-            img = img.resize(target_size, Image.BICUBIC)  
-        frames.append(img)
-    cap.release()
-    return frames
-
-def read_frames_from_zip(zip_path, zip_reader, target_size=None):
-    """从zip压缩包读取帧，并可选统一大小"""
     zfilelist = zip_reader.filelist(zip_path)
     frames = []
     for zfile in zfilelist:
@@ -49,26 +32,6 @@ def read_frames_from_zip(zip_path, zip_reader, target_size=None):
     return frames, zfilelist
 
 def save_video(frames, save_path, fps=24):
-    """保存帧列表为视频"""
-    if len(frames) == 0:
-        raise ValueError("没有帧可保存")
-
-    w, h = frames[0].size   
-    writer = cv2.VideoWriter(
-        save_path,
-        cv2.VideoWriter_fourcc(*"mp4v"),
-        fps,
-        (w, h)
-    )
-
-    for f in tqdm(frames, desc="Saving video"):
-        arr = np.array(f).astype(np.uint8)
-        writer.write(cv2.cvtColor(arr, cv2.COLOR_RGB2BGR))
-    writer.release()
-
-
-def evaluate_batch_model(frames, model, device, output_dir, fps=24, batch_size=8):
-    """支持任意 batchsize 的逐帧推理并保存结果视频"""
     pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")

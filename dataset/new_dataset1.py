@@ -799,7 +799,7 @@ class HyperKDataset_Test(Dataset):
             input_dir = os.path.join(root, folder_name)
 
             if not os.path.exists(input_dir):
-                print(f"⚠️ 跳过 {folder_name} 不存在")
+                print(f"跳过 {folder_name} 不存在")
                 continue
 
             limit = limits.get(folder_name, None)
@@ -812,7 +812,7 @@ class HyperKDataset_Test(Dataset):
                 if os.path.exists(input_path):
                     self.I_paths.append(input_path)
                 else:
-                    print(f"⚠️ input未找到: {input_path}")
+                    print(f"input未找到: {input_path}")
 
         self.SampleNewItems()
 
