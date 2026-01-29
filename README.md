@@ -1,4 +1,4 @@
-## HSS-MST for Endoscopic images and videos
+## MTRSNet for Endoscopic images and videos
 
 ---
 
@@ -163,7 +163,7 @@ Run `inference.py` for model inference. Before running, you need to prepare:
 
 **Preparation 1**: Model checkpoint file (.pth)
 - Specify via the `--ckpt` parameter or configure as `model_path` in `MTRR_option.py`
-- Used to load the trained HSS-MST model weights
+- Used to load the trained MTRSNet model weights
 
 **Preparation 2**: Dataset paths (hardcoded in the code)
 - Tissue real-time data: `/home/hostname/hostname-MTRRVideo/data/tissue_real` and its index files
@@ -198,18 +198,18 @@ Visualization results as described above are automatically generated and saved d
 ### Project Structure
 ---
 
-**Complete HSS-MSTv2 Project Directory Description**
+**Complete MTRSNetv2 Project Directory Description**
 
 ```
 Project Root Directory (./)
 ├── [Training and Inference Scripts]
-│   ├── train.py                    - Main training script for HSS-MST model
+│   ├── train.py                    - Main training script for MTRSNet model
 │   ├── inference.py                - Inference script for predictions on dataset
 │   ├── debug_train.py              - Debug training script
 │   └── classifier.py               - Classifier-related code
 │
 ├── [Model Architecture Files]
-│   ├── HSS-MST.py                  - HSS-MST main architecture and engine class
+│   ├── MTRSNet.py                  - MTRSNet main architecture and engine class
 │   ├── MTRR_RD_modules.py          - MTRR R-D module implementation
 │   ├── MTRR_token_modules.py       - MTRR token module implementation
 │   ├── vmamba.py                   - VMamba model implementation
@@ -281,12 +281,12 @@ Project Root Directory (./)
 
 **Core Training Pipeline:**
 ```
-train.py → MTRR_option.py → HSS-MST.py → psdLoss/
+train.py → MTRR_option.py → MTRSNet.py → psdLoss/
 ```
 
 **Inference Pipeline:**
 ```
-inference.py → HSS-MST.py → dataset/new_dataset1.py
+inference.py → MTRSNet.py → dataset/new_dataset1.py
 ```
 
 **Data Processing Pipeline:**
