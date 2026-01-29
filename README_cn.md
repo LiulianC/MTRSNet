@@ -1,4 +1,4 @@
-## MTRRNet 内镜图像与视频反射去除网络
+## MTRSNet 内镜图像与视频反射去除网络
 
 ---
 
@@ -160,7 +160,7 @@ pip install opencv-python pillow matplotlib scikit-image scipy pyyaml tqdm tabul
 
 **准备 1**：模型检查点文件（.pth）
 - 通过 `--ckpt` 参数指定，或在 `MTRR_option.py` 中配置 `model_path`
-- 用于加载训练好的 MTRRNet 模型权重
+- 用于加载训练好的 MTRSNet 模型权重
 
 **准备 2**：数据集路径（代码中硬编码）
 - 织物实时数据：`/home/hostname/hostname-MTRRVideo/data/tissue_real` 及其索引文件
@@ -195,18 +195,18 @@ python inference.py --ckpt ./model_fit/model_latest.pth --outdir ./infer_outputs
 ### 项目结构
 ---
 
-**MTRRNetv2 项目完整目录说明**
+**MTRSNetv2 项目完整目录说明**
 
 ```
 项目根目录 (./)
 ├── 【训练与推理脚本】
-│   ├── train.py                    - 主训练脚本，用于训练MTRRNet模型
+│   ├── train.py                    - 主训练脚本，用于训练MTRSNet模型
 │   ├── inference.py                - 推理脚本，用于在数据集上进行预测
 │   ├── debug_train.py              - 调试训练脚本
 │   └── classifier.py               - 分类器相关代码
 │
 ├── 【模型架构文件】
-│   ├── MTRRNet.py                  - MTRRNet主模型架构和引擎类
+│   ├── MTRSNet.py                  - MTRSNet主模型架构和引擎类
 │   ├── MTRR_RD_modules.py          - MTRR R-D模块实现
 │   ├── MTRR_token_modules.py       - MTRR令牌模块实现
 │   ├── vmamba.py                   - VMamba模型相关实现
@@ -278,12 +278,12 @@ python inference.py --ckpt ./model_fit/model_latest.pth --outdir ./infer_outputs
 
 **核心训练流程：**
 ```
-train.py → MTRR_option.py → MTRRNet.py → psdLoss/
+train.py → MTRR_option.py → MTRSNet.py → psdLoss/
 ```
 
 **推理流程：**
 ```
-inference.py → MTRRNet.py → dataset/new_dataset1.py
+inference.py → MTRSNet.py → dataset/new_dataset1.py
 ```
 
 **数据处理管道：**
