@@ -1,11 +1,27 @@
+                                                          
+                    
+                                        
+                                        
+                                                          
+
+                                                          
+        
+                                    
+                                                                                                                                                     
+                                                                                                                                                  
+                  
+                                                          
 
 
-
+                                                          
+               
+                                                          
 
 import torch
 import warnings
 
 WITH_TRITON = True
+                     
 try:
     import triton
     import triton.language as tl
@@ -13,6 +29,7 @@ except:
     WITH_TRITON = False
     warnings.warn("Triton not installed, fall back to pytorch implements.")
 
+                                                       
 if WITH_TRITON:
     try:
         from functools import cached_property
@@ -20,15 +37,19 @@ if WITH_TRITON:
         warnings.warn("if you are using py37, add this line to functools.py: "
             "cached_property = lambda func: property(lru_cache()(func))")
 
+                                                               
 
+                                                                                  
+                                                                            
+                      
 def cross_scan_fwd(x: torch.Tensor, in_channel_first=True, out_channel_first=True, scans=0):
     if in_channel_first:
-        B, C, H, W = x.shape 
+        B, C, H, W = x.shape          
         if scans == 0:
             y = x.new_empty((B, 4, C, H * W))
             y[:, 0, :, :] = x.flatten(2, 3)
             y[:, 1, :, :] = x.transpose(dim0=2, dim1=3).flatten(2, 3)
-            y[:, 2:4, :, :] = torch.flip(y[:, 0:2, :, :], dims=[-1]) 
+            y[:, 2:4, :, :] = torch.flip(y[:, 0:2, :, :], dims=[-1])                    
         elif scans == 1:
             y = x.view(B, 1, C, H * W).repeat(1, 4, 1, 1)
         elif scans == 2:
@@ -64,11 +85,21 @@ def cross_scan_fwd(x: torch.Tensor, in_channel_first=True, out_channel_first=Tru
     elif (not in_channel_first) and out_channel_first:
         y = y.permute(0, 2, 3, 1).contiguous()
 
-    return y 
+    return y                    
 
+                                               
+                  
+                                                
+                            
 
+                    
+            
 
+                  
+                  
 
+                  
+                                           
 
 def cross_merge_fwd(y: torch.Tensor, in_channel_first=True, out_channel_first=True, scans=0):
     if out_channel_first:
@@ -113,6 +144,7 @@ def cross_merge_fwd(y: torch.Tensor, in_channel_first=True, out_channel_first=Tr
     
     return y
 
+                                                      
 def cross_scan1b1_fwd(x: torch.Tensor, in_channel_first=True, out_channel_first=True, scans=0):
     if in_channel_first:
         B, _, C, H, W = x.shape
@@ -173,6 +205,7 @@ def cross_scan1b1_fwd(x: torch.Tensor, in_channel_first=True, out_channel_first=
 
     return y
 
+                                                                          
 def cross_merge1b1_fwd(y: torch.Tensor, in_channel_first=True, out_channel_first=True, scans=0):
     if out_channel_first:
         B, K, D, H, W = y.shape
@@ -235,9 +268,13 @@ def cross_merge1b1_fwd(y: torch.Tensor, in_channel_first=True, out_channel_first
     return y
 
 
+                                                                                                                                         
+                                                                     
 class CrossScanF(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x: torch.Tensor, in_channel_first=True, out_channel_first=True, one_by_one=False, scans=0):
+                                                                            
+                                                
         ctx.in_channel_first = in_channel_first
         ctx.out_channel_first = out_channel_first
         ctx.one_by_one = one_by_one
@@ -260,6 +297,7 @@ class CrossScanF(torch.autograd.Function):
     
     @staticmethod
     def backward(ctx, ys: torch.Tensor):
+                           
         in_channel_first = ctx.in_channel_first
         out_channel_first = ctx.out_channel_first
         one_by_one = ctx.one_by_one
@@ -281,6 +319,8 @@ class CrossScanF(torch.autograd.Function):
 class CrossMergeF(torch.autograd.Function):
     @staticmethod
     def forward(ctx, ys: torch.Tensor, in_channel_first=True, out_channel_first=True, one_by_one=False, scans=0):
+                                                                            
+                                                
         ctx.in_channel_first = in_channel_first
         ctx.out_channel_first = out_channel_first
         ctx.one_by_one = one_by_one
@@ -298,6 +338,8 @@ class CrossMergeF(torch.autograd.Function):
     
     @staticmethod
     def backward(ctx, x: torch.Tensor):
+                           
+                              
         in_channel_first = ctx.in_channel_first
         out_channel_first = ctx.out_channel_first
         one_by_one = ctx.one_by_one
@@ -322,12 +364,14 @@ class CrossMergeF(torch.autograd.Function):
         return x, None, None, None, None
 
 
+                                                                                                       
 
+                                                            
 
-@triton.jit 
+@triton.jit                                                                                                                              
 def triton_cross_scan_flex(
-    x: tl.tensor, 
-    y: tl.tensor, 
+    x: tl.tensor,                                                                  
+    y: tl.tensor,                                    
     x_layout: tl.constexpr,
     y_layout: tl.constexpr,
     operation: tl.constexpr,
@@ -342,6 +386,11 @@ def triton_cross_scan_flex(
     NH: tl.constexpr,
     NW: tl.constexpr,
 ):
+                  
+                                   
+                                     
+                                    
+                                                                 
 
     i_hw, i_c, i_b = tl.program_id(0), tl.program_id(1), tl.program_id(2)
     i_h, i_w = (i_hw // NW), (i_hw % NW)
@@ -355,21 +404,25 @@ def triton_cross_scan_flex(
     neg_h = (DH - i_h * BH - 1 - tl.arange(0, BH)[:, None])
     neg_w = (DW - i_w * BW - 1 - tl.arange(0, BW)[None, :])
     if scans == 0:
+                                          
         HWRoute0 = pos_h * DW + pos_w
-        HWRoute1 = pos_w * DH + pos_h 
-        HWRoute2 = neg_h * DW + neg_w 
-        HWRoute3 = neg_w * DH + neg_h 
+        HWRoute1 = pos_w * DH + pos_h        
+        HWRoute2 = neg_h * DW + neg_w       
+        HWRoute3 = neg_w * DH + neg_h               
     elif scans == 1:
+                                 
         HWRoute0 = pos_h * DW + pos_w
         HWRoute1 = HWRoute0
         HWRoute2 = HWRoute0
         HWRoute3 = HWRoute0
     elif scans == 2:
+                                 
         HWRoute0 = pos_h * DW + pos_w
         HWRoute1 = HWRoute0
-        HWRoute2 = neg_h * DW + neg_w 
+        HWRoute2 = neg_h * DW + neg_w       
         HWRoute3 = HWRoute2 
     elif scans == 3:
+                                            
         HWRoute0 = pos_h * DW + pos_w
         HWRoute1 = neg_w * DH + pos_h
         HWRoute2 = neg_h * DW + neg_w
@@ -543,8 +596,13 @@ class CrossMergeTritonF(torch.autograd.Function):
         return y, None, None, None, None, None
 
 
+                                                                 
 
+                                                                     
 def cross_scan_fn(x: torch.Tensor, in_channel_first=True, out_channel_first=True, one_by_one=False, scans=0, force_torch=False):
+                                                                        
+                                    
+                                                               
     CSF = CrossScanTritonF if WITH_TRITON and x.is_cuda and (not force_torch) else CrossScanF
     if x.is_cuda:
         with torch.cuda.device(x.device):
@@ -553,7 +611,11 @@ def cross_scan_fn(x: torch.Tensor, in_channel_first=True, out_channel_first=True
         return CrossScanF.apply(x, in_channel_first, out_channel_first, one_by_one, scans)
 
 
+                                                                     
 def cross_merge_fn(y: torch.Tensor, in_channel_first=True, out_channel_first=True, one_by_one=False, scans=0, force_torch=False):
+                                    
+                                                                            
+                                                               
     CMF = CrossMergeTritonF if WITH_TRITON and y.is_cuda and (not force_torch) else CrossMergeF
     if y.is_cuda:
         with torch.cuda.device(y.device):
@@ -561,28 +623,181 @@ def cross_merge_fn(y: torch.Tensor, in_channel_first=True, out_channel_first=Tru
     else:
         return CrossMergeF.apply(y, in_channel_first, out_channel_first, one_by_one, scans)
 
+                                                                          
 
+              
+                             
+                                       
+                             
+                             
+                                                                                                      
+                                                                                                         
+                                                      
+                                                      
 
+                                          
+                                  
+                       
+                                
+                                  
+                                                                                
+                                                                      
+                                                                                                       
+                                        
+                       
         
+                                               
+                                         
+                       
+                                            
+                                                                            
+                                                                                                               
+                                                                                                                  
+                                                            
+                      
 
+                                              
+                                     
+                       
+                                
+                                        
+                                                                                      
+                                                                            
+                                                                                                             
+                                        
+                       
         
+                            
+                                  
+                                                           
+                      
         
+                              
+                                      
+                                                    
 
+                           
+                                  
+                                                           
+                                                          
+                      
         
+                             
+                                      
+                                       
+                                                                            
+                                           
 
+                  
+                                                                   
+                                                                                         
+                                                                                
+                                                                    
+                                                                                          
+                                                                                 
+                                                         
+                                           
+                                                                                    
+                                                                                                          
+                                                                                                 
+                                                                                     
+                                                                                                           
+                                                                                                  
+                                                         
+                                           
 
+                                  
+                                       
+                                              
+                                                                       
+                                                                                                                   
+                                                                                                                 
             
+                                                   
+                                                                                                                                                                                      
+                                                                                                                                                                                              
+                                                                                                                                                                                                                                                                                   
             
+                        
+                                                                                                                   
+                                                                                                            
+                                                                                                          
+            
+                                                                       
+                         
+                          
+                                                 
+                                                 
+                                          
+                                                   
+                         
+                          
+                                              
+                                              
+                                          
+                                                   
+                                                                       
+                                                  
+
+                                             
+                             
+                                                                            
+                                                                        
+            
+                         
+                          
+                                                 
+                                                 
+                                          
+                                                   
+                                                                       
+                                                  
+
+                            
+                   
+                                                             
+                                                                                    
+                                                                                     
+                                                                                                         
+                                                                                                        
+                                                                                                                                                      
+                                                                                                                                      
+                                                                                                                                                          
+                                                                                                                                                         
+                                     
+                                  
+                                     
+                                     
+                                         
+                                  
+                                         
+                                         
+
+                                      
+                                              
+
+                                    
+                                                                                      
+                                                                                                             
+                                                                                                                 
+
+                                                                            
+                                                     
+                                                         
+                                                                                                                                 
+                                                                                                                                                 
+
+                      
 
 
+                            
+                             
+                              
 
 
-
-
-
-
-
-
+                                                          
+           
+                                                          
 
 import time
 import torch
@@ -597,13 +812,13 @@ except ImportError:
 
 
 def selective_scan_torch(
-    u: torch.Tensor, 
-    delta: torch.Tensor, 
-    A: torch.Tensor, 
-    B: torch.Tensor, 
-    C: torch.Tensor, 
-    D: torch.Tensor = None, 
-    delta_bias: torch.Tensor = None, 
+    u: torch.Tensor,                
+    delta: torch.Tensor,                
+    A: torch.Tensor,             
+    B: torch.Tensor,               
+    C: torch.Tensor,               
+    D: torch.Tensor = None,          
+    delta_bias: torch.Tensor = None,          
     delta_softplus=True, 
     oflex=True, 
     *args,
@@ -636,7 +851,7 @@ def selective_scan_torch(
             x = deltaA[:, :, i, :] * x + deltaB_u[:, :, i, :]
             y = torch.einsum('bdn,bdn->bd', x, C[:, :, :, i])
             ys.append(y)
-        y = torch.stack(ys, dim=2) 
+        y = torch.stack(ys, dim=2)            
     
     out = y if D is None else y + u * D.unsqueeze(-1)
     return out if oflex else out.to(dtype=dtype_in)
@@ -647,6 +862,8 @@ class SelectiveScanCuda(torch.autograd.Function):
     @torch.cuda.amp.custom_fwd
     def forward(ctx, u, delta, A, B, C, D=None, delta_bias=None, delta_softplus=False, oflex=True, backend=None):
         ctx.delta_softplus = delta_softplus
+                                                                                          
+                                                                                        
         backend = "mamba" if WITH_SELECTIVESCAN_MAMBA and (backend is None) else backend
         ctx.backend = backend
         if backend == "oflex":
@@ -676,13 +893,13 @@ class SelectiveScanCuda(torch.autograd.Function):
 
 
 def selective_scan_fn(
-    u: torch.Tensor, 
-    delta: torch.Tensor, 
-    A: torch.Tensor, 
-    B: torch.Tensor, 
-    C: torch.Tensor, 
-    D: torch.Tensor = None, 
-    delta_bias: torch.Tensor = None, 
+    u: torch.Tensor,                
+    delta: torch.Tensor,                
+    A: torch.Tensor,             
+    B: torch.Tensor,               
+    C: torch.Tensor,               
+    D: torch.Tensor = None,          
+    delta_bias: torch.Tensor = None,          
     delta_softplus=True, 
     oflex=True,
     backend=None,
@@ -691,7 +908,9 @@ def selective_scan_fn(
     return fn(u, delta, A, B, C, D, delta_bias, delta_softplus, oflex, backend)
 
 
+                                                      
 
+                                                                                                  
 def print_jit_input_names(inputs):
     print("input params: ", end=" ", flush=True)
     try: 
@@ -701,36 +920,38 @@ def print_jit_input_names(inputs):
         pass
     print("", flush=True)
 
+                                                         
 def flops_selective_scan_fn(B=1, L=256, D=768, N=16, with_D=True, with_Z=False, with_complex=False):
-    """
-    u: r(B D L)
-    delta: r(B D L)
-    A: r(D N)
-    B: r(B N L)
-    C: r(B N L)
-    D: r(D)
-    z: r(B D L)
-    delta_bias: r(D), fp32
-    
-    ignores:
-        [.float(), +, .softplus, .shape, new_zeros, repeat, stack, to(dtype), silu] 
-
-    B → batch size
-
-    L → sequence length（时序长度 / token 数 / 图像 patch 序列长度）
-
-    D → hidden dim（通道数 / embedding 维度）
-
-    N → 状态空间维度（SSM 的内部维度）
-
-    with_D → 是否包含 skip connection（D 项）
-
-    with_Z → 是否包含输出门控项 z
-
-    with_complex → 是否启用复数运算（Mamba 论文里提到过，但大部分实现是实数）
-
-    """
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+       
     assert not with_complex 
+                                                      
     flops = 9 * B * L * D * N
     if with_D:
         flops += B * D * L
@@ -739,34 +960,38 @@ def flops_selective_scan_fn(B=1, L=256, D=768, N=16, with_D=True, with_Z=False, 
     return flops
 
 
+                                   
+                                        
 def flops_selective_scan_ref(B=1, L=256, D=768, N=16, with_D=True, with_Z=False, with_Group=True, with_complex=False):
-    """
-    u: r(B D L)
-    delta: r(B D L)
-    A: r(D N)
-    B: r(B N L)
-    C: r(B N L)
-    D: r(D)
-    z: r(B D L)
-    delta_bias: r(D), fp32
-    
-    ignores:
-        [.float(), +, .softplus, .shape, new_zeros, repeat, stack, to(dtype), silu] 
-    """
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+       
     import numpy as np
     
+                           
     def get_flops_einsum(input_shapes, equation):
         np_arrs = [np.zeros(s) for s in input_shapes]
         optim = np.einsum_path(equation, *np_arrs, optimize="optimal")[1]
         for line in optim.split("\n"):
             if "optimized flop" in line.lower():
+                                                                                      
                 flop = float(np.floor(float(line.split(":")[-1]) / 2))
                 return flop
     
 
     assert not with_complex
 
-    flops = 0 
+    flops = 0                       
 
     flops += get_flops_einsum([[B, D, L], [D, N]], "bdl,dn->bdln")
     if with_Group:
@@ -787,9 +1012,14 @@ def flops_selective_scan_ref(B=1, L=256, D=768, N=16, with_D=True, with_Z=False,
     return flops
 
 
-
-
 def selective_scan_flop_jit(inputs, outputs, backend="prefixsum", verbose=True):
+\
+\
+\
+\
+\
+\
+       
     if verbose:
         print_jit_input_names(inputs)
     flops_fn = flops_selective_scan_ref if backend == "naive" else flops_selective_scan_fn
@@ -799,13 +1029,55 @@ def selective_scan_flop_jit(inputs, outputs, backend="prefixsum", verbose=True):
     return flops
 
 
+                            
+                                                                                    
+                                                                                                 
+                                                                                     
+                                                                                     
+                                                                                        
+                                                                                     
+                                                                                                 
+                                                                                                       
+                                                     
 
+                                                
+                     
+                                  
+                                 
+                          
+                         
+                                  
+                            
+                                 
+                          
+                         
+                                  
+                                              
 
+                  
+                                                                                              
+                                                                                                                                             
         
+                                                                                                    
+                                                                                                     
+                                                                                                  
+                                            
+                              
+                                  
+                                                                                                                 
+                                                  
+
+                                                                               
+                                                                                                                                                               
+                                                                                                                                                               
+                                                                                                                                                               
+
+             
 
 
-
-
+                                                          
+          
+                                                          
 
 
 import os
@@ -826,7 +1098,9 @@ from fvcore.nn import FlopCountAnalysis, flop_count_str, flop_count, parameter_c
 DropPath.__repr__ = lambda self: f"timm.DropPath({self.drop_prob})"
 
 
+                                                       
 
+                                   
 class Linear(nn.Linear):
     def __init__(self, *args, channel_first=False, groups=1, **kwargs):
         nn.Linear.__init__(self, *args, **kwargs)
@@ -835,6 +1109,7 @@ class Linear(nn.Linear):
     
     def forward(self, x: torch.Tensor):
         if self.channel_first:
+                                  
             if len(x.shape) == 4:
                 return F.conv2d(x, self.weight[:, :, None, None], self.bias, groups=self.groups)
             elif len(x.shape) == 3:
@@ -842,13 +1117,14 @@ class Linear(nn.Linear):
         else:
             return F.linear(x, self.weight, self.bias)
 
-    def _load_from_state_dict(self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs): 
+    def _load_from_state_dict(self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs):                      
         self_state_dict = self.state_dict()
         load_state_dict_keys = list(state_dict.keys())
         if prefix + "weight" in load_state_dict_keys:
             state_dict[prefix + "weight"] = state_dict[prefix + "weight"].view_as(self_state_dict["weight"])
         return super()._load_from_state_dict(state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs)
 
+                                                            
 class LayerNorm(nn.LayerNorm):
     def __init__(self, *args, channel_first=None, in_channel_first=False, out_channel_first=False, **kwargs):
         nn.LayerNorm.__init__(self, *args, **kwargs)
@@ -866,6 +1142,7 @@ class LayerNorm(nn.LayerNorm):
             x = x.permute(0, 3, 1, 2)
         return x
 
+                                                         
 class PatchMerge(nn.Module):
     def __init__(self, channel_first=True, in_channel_first=False, out_channel_first=False,):
         nn.Module.__init__(self)
@@ -874,6 +1151,7 @@ class PatchMerge(nn.Module):
             out_channel_first = channel_first
         self.in_channel_first = in_channel_first
         self.out_channel_first = out_channel_first
+                                                                                
 
     def forward(self, x: torch.Tensor):
         B, C, H, W = x.shape
@@ -887,7 +1165,7 @@ class PatchMerge(nn.Module):
             x = nn.functional.pad(x, pad_shape)
         
         xs = [
-            x[..., 0::2, 0::2], x[..., 1::2, 0::2],  
+            x[..., 0::2, 0::2], x[..., 1::2, 0::2],                                       
             x[..., 0::2, 1::2], x[..., 1::2, 1::2],
         ] if self.in_channel_first else [
             x[..., 0::2, 0::2, :], x[..., 1::2, 0::2, :], 
@@ -898,6 +1176,7 @@ class PatchMerge(nn.Module):
         
         return xs
 
+                         
 class Permute(nn.Module):
     def __init__(self, *args):
         super().__init__()
@@ -906,9 +1185,10 @@ class Permute(nn.Module):
     def forward(self, x: torch.Tensor):
         return x.permute(*self.args)
 
+                                                 
 class SoftmaxSpatial(nn.Softmax):
     def forward(self, x: torch.Tensor):
-        if self.dim == -1: 
+        if self.dim == -1:                                                           
             B, C, H, W = x.shape
             return super().forward(x.view(B, C, -1)).view(B, C, H, W)
         elif self.dim == 1:
@@ -917,13 +1197,16 @@ class SoftmaxSpatial(nn.Softmax):
         else:
             raise NotImplementedError
 
+                                                         
 class Mlp(nn.Module):
     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.,channel_first=False):
         super().__init__()
         out_features = out_features or in_features
         hidden_features = hidden_features or in_features
         self.fc1 = Linear(in_features, hidden_features, channel_first=channel_first)
+                                
         self.act = nn.GELU()
+                                                                 
         self.fc2 = Linear(hidden_features, out_features, channel_first=channel_first)
         self.drop = nn.Dropout(drop)
 
@@ -941,6 +1224,7 @@ class mamba_init:
     def dt_init(dt_rank, d_inner, dt_scale=1.0, dt_init="random", dt_min=0.001, dt_max=0.1, dt_init_floor=1e-4):
         dt_proj = nn.Linear(dt_rank, d_inner, bias=True)
 
+                                                                                 
         dt_init_std = dt_rank**-0.5 * dt_scale
         if dt_init == "constant":
             nn.init.constant_(dt_proj.weight, dt_init_std)
@@ -949,20 +1233,25 @@ class mamba_init:
         else:
             raise NotImplementedError
 
+                                                                                     
         dt = torch.exp(
             torch.rand(d_inner) * (math.log(dt_max) - math.log(dt_min))
             + math.log(dt_min)
         ).clamp(min=dt_init_floor)
+                                                                              
         inv_dt = dt + torch.log(-torch.expm1(-dt))
         with torch.no_grad():
             dt_proj.bias.copy_(inv_dt)
+                                                                                                   
+                                        
         
         return dt_proj
 
     @staticmethod
     def A_log_init(d_state, d_inner, copies=-1, device=None, merge=True):
+                                 
         A = torch.arange(1, d_state + 1, dtype=torch.float32, device=device).view(1, -1).repeat(d_inner, 1).contiguous()
-        A_log = torch.log(A)  
+        A_log = torch.log(A)                      
         if copies > 0:
             A_log = A_log[None].repeat(copies, 1, 1).contiguous()
             if merge:
@@ -973,38 +1262,60 @@ class mamba_init:
 
     @staticmethod
     def D_init(d_inner, copies=-1, device=None, merge=True):
+                            
         D = torch.ones(d_inner, device=device)
         if copies > 0:
             D = D[None].repeat(copies, 1).contiguous()
             if merge:
                 D = D.flatten(0, 1)
-        D = nn.Parameter(D)  
+        D = nn.Parameter(D)                
         D._no_weight_decay = True
         return D
 
     @classmethod
     def init_dt_A_D(cls, d_state, dt_rank, d_inner, dt_scale, dt_init, dt_min, dt_max, dt_init_floor, k_group=4):
+                                              
         dt_projs = [
             cls.dt_init(dt_rank, d_inner, dt_scale, dt_init, dt_min, dt_max, dt_init_floor)
             for _ in range(k_group)
         ]
-        dt_projs_weight = nn.Parameter(torch.stack([t.weight for t in dt_projs], dim=0)) 
-        dt_projs_bias = nn.Parameter(torch.stack([t.bias for t in dt_projs], dim=0)) 
+        dt_projs_weight = nn.Parameter(torch.stack([t.weight for t in dt_projs], dim=0))                   
+        dt_projs_bias = nn.Parameter(torch.stack([t.bias for t in dt_projs], dim=0))             
         del dt_projs
             
-        A_logs = cls.A_log_init(d_state, d_inner, copies=k_group, merge=True) 
-        Ds = cls.D_init(d_inner, copies=k_group, merge=True) 
+                                                      
+        A_logs = cls.A_log_init(d_state, d_inner, copies=k_group, merge=True)             
+        Ds = cls.D_init(d_inner, copies=k_group, merge=True)            
         return A_logs, Ds, dt_projs_weight, dt_projs_bias
 
 
+                    
+                 
+       
+                        
+      
+                    
+      
+                                
+      
+                                  
+      
+                       
+      
+                              
+      
+                      
 class SS2Dv0:
     def __initv0__(
         self,
+                                
         d_model=96,
         d_state=16,
         ssm_ratio=2.0,
         dt_rank="auto",
+                                
         dropout=0.0,
+                                
         seq=False,
         force_fp32=True,
         **kwargs,
@@ -1032,6 +1343,7 @@ class SS2Dv0:
         if not force_fp32:
             self.forward = partial(self.forwardv0, force_fp32=False)
 
+                                              
         self.in_proj = nn.Linear(d_model, d_inner * 2, bias=bias)
         self.act: nn.Module = act_layer()
         self.conv2d = nn.Conv2d(
@@ -1044,27 +1356,30 @@ class SS2Dv0:
             **factory_kwargs,
         )
 
+                                             
         self.x_proj = [
             nn.Linear(d_inner, (dt_rank + d_state * 2), bias=False)
             for _ in range(k_group)
         ]
-        self.x_proj_weight = nn.Parameter(torch.stack([t.weight for t in self.x_proj], dim=0)) 
+        self.x_proj_weight = nn.Parameter(torch.stack([t.weight for t in self.x_proj], dim=0))                
         del self.x_proj
 
+                                                    
         self.A_logs, self.Ds, self.dt_projs_weight, self.dt_projs_bias = mamba_init.init_dt_A_D(
             d_state, dt_rank, d_inner, dt_scale, dt_init, dt_min, dt_max, dt_init_floor, k_group=4,
         )
 
+                                                          
         self.out_norm = nn.LayerNorm(d_inner)
         self.out_proj = nn.Linear(d_inner, d_model, bias=bias)
         self.dropout = nn.Dropout(dropout) if dropout > 0. else nn.Identity()
 
     def forwardv0(self, x: torch.Tensor, seq=False, force_fp32=True, **kwargs):
         x = self.in_proj(x)
-        x, z = x.chunk(2, dim=-1) 
+        x, z = x.chunk(2, dim=-1)               
         z = self.act(z)
         x = x.permute(0, 3, 1, 2).contiguous()
-        x = self.conv2d(x) 
+        x = self.conv2d(x)               
         x = self.act(x)
         selective_scan = partial(selective_scan_fn, backend="mamba")
         
@@ -1074,7 +1389,7 @@ class SS2Dv0:
         L = H * W
 
         x_hwwh = torch.stack([x.view(B, -1, L), torch.transpose(x, dim0=2, dim1=3).contiguous().view(B, -1, L)], dim=1).view(B, 2, -1, L)
-        xs = torch.cat([x_hwwh, torch.flip(x_hwwh, dims=[-1])], dim=1) 
+        xs = torch.cat([x_hwwh, torch.flip(x_hwwh, dims=[-1])], dim=1)               
 
         x_dbl = torch.einsum("b k d l, k c d -> b k c l", xs, self.x_proj_weight)
         if hasattr(self, "x_proj_bias"):
@@ -1082,15 +1397,17 @@ class SS2Dv0:
         dts, Bs, Cs = torch.split(x_dbl, [R, N, N], dim=2)
         dts = torch.einsum("b k r l, k d r -> b k d l", dts, self.dt_projs_weight)
 
-        xs = xs.view(B, -1, L) 
-        dts = dts.contiguous().view(B, -1, L) 
-        Bs = Bs.contiguous() 
-        Cs = Cs.contiguous() 
+        xs = xs.view(B, -1, L)                
+        dts = dts.contiguous().view(B, -1, L)                
+        Bs = Bs.contiguous()                     
+        Cs = Cs.contiguous()                     
         
-        As = -self.A_logs.float().exp() 
-        Ds = self.Ds.float() 
-        dt_projs_bias = self.dt_projs_bias.float().view(-1) 
+        As = -self.A_logs.float().exp()                   
+        Ds = self.Ds.float()          
+        dt_projs_bias = self.dt_projs_bias.float().view(-1)          
 
+                                                                                                         
+                                                                                            
         to_fp32 = lambda *args: (_a.to(torch.float32) for _a in args)
         
         if force_fp32:
@@ -1121,7 +1438,7 @@ class SS2Dv0:
         invwh_y = torch.transpose(inv_y[:, 1].view(B, -1, W, H), dim0=2, dim1=3).contiguous().view(B, -1, L)
         y = out_y[:, 0] + inv_y[:, 0] + wh_y + invwh_y
         
-        y = y.transpose(dim0=1, dim1=2).contiguous() 
+        y = y.transpose(dim0=1, dim1=2).contiguous()            
         y = self.out_norm(y).view(B, H, W, -1)
 
         y = y * z
@@ -1129,26 +1446,36 @@ class SS2Dv0:
         return out
 
 
+                                        
+                                                                             
+                                         
+                                                                                                                           
 class SS2Dv2:
     def __initv2__(
         self,
+                                
         d_model=96,
         d_state=16,
         ssm_ratio=2.0,
         dt_rank="auto",
         act_layer=nn.SiLU,
-        d_conv=3, 
+                                
+        d_conv=3,                     
         conv_bias=True,
+                                
         dropout=0.0,
         bias=False,
+                                
         dt_min=0.001,
         dt_max=0.1,
         dt_init="random",
         dt_scale=1.0,
         dt_init_floor=1e-4,
         initialize="v0",
+                                
         forward_type="v2",
         channel_first=False,
+                                
         **kwargs,    
     ):
         factory_kwargs = {"device": None, "dtype": None}
@@ -1156,7 +1483,7 @@ class SS2Dv2:
         self.k_group = 4
         self.d_model = int(d_model)
         self.d_state = int(d_state)
-        self.d_inner = int(ssm_ratio * d_model) 
+        self.d_inner = int(ssm_ratio * d_model)      
         self.dt_rank = int(math.ceil(self.d_model / 16) if dt_rank == "auto" else dt_rank)
         self.channel_first = channel_first
         self.with_dconv = d_conv > 1
@@ -1164,6 +1491,7 @@ class SS2Dv2:
 
         
 
+                                                              
         checkpostfix = self.checkpostfix
         self.disable_force32, forward_type = checkpostfix("_no32", forward_type)
         self.oact, forward_type = checkpostfix("_oact", forward_type)
@@ -1171,26 +1499,32 @@ class SS2Dv2:
         self.disable_z_act, forward_type = checkpostfix("_nozact", forward_type)
         self.out_norm, forward_type = self.get_outnorm(forward_type, self.d_inner, channel_first)
 
+                                                                    
         FORWARD_TYPES = dict(
             v01=partial(self.forward_corev2, force_fp32=(not self.disable_force32), selective_scan_backend="mamba", scan_force_torch=True),
             v02=partial(self.forward_corev2, force_fp32=(not self.disable_force32), selective_scan_backend="mamba"),
             v03=partial(self.forward_corev2, force_fp32=(not self.disable_force32), selective_scan_backend="oflex"),
-            v04=partial(self.forward_corev2, force_fp32=False), 
-            v05=partial(self.forward_corev2, force_fp32=False, no_einsum=True),  
+            v04=partial(self.forward_corev2, force_fp32=False),                                                      
+            v05=partial(self.forward_corev2, force_fp32=False, no_einsum=True),                                                       
+                                             
             v051d=partial(self.forward_corev2, force_fp32=False, no_einsum=True, scan_mode="unidi"),
             v052d=partial(self.forward_corev2, force_fp32=False, no_einsum=True, scan_mode="bidi"),
             v052dc=partial(self.forward_corev2, force_fp32=False, no_einsum=True, scan_mode="cascade2d"),
-            v052d3=partial(self.forward_corev2, force_fp32=False, no_einsum=True, scan_mode=3), 
+            v052d3=partial(self.forward_corev2, force_fp32=False, no_einsum=True, scan_mode=3),        
+                                             
             v2=partial(self.forward_corev2, force_fp32=(not self.disable_force32), selective_scan_backend=None),
             v3=partial(self.forward_corev2, force_fp32=False, selective_scan_backend="oflex"),
         )
         self.forward_core = FORWARD_TYPES.get(forward_type, None)
 
+                                                         
         
+                               
         d_proj = self.d_inner if self.disable_z else (self.d_inner * 2)
         self.in_proj = Linear(self.d_model, d_proj, bias=bias, channel_first=channel_first)
         self.act = nn.SiLU()
         
+                                                      
         if self.with_dconv:
             self.conv2d = nn.Conv2d(
                 in_channels=self.d_inner,
@@ -1203,11 +1537,21 @@ class SS2Dv2:
             )
 
 
+                                             
+                                                                                                 
         self.x_proj = Linear(self.d_inner, self.k_group * (self.dt_rank + self.d_state * 2), groups=self.k_group, bias=False, channel_first=True)
 
+                                                                      
         self.dt_projs = Linear(self.dt_rank, self.k_group * self.d_inner, groups=self.k_group, bias=False, channel_first=True)
           
+                         
+                                                                                    
+                                          
+           
+                                                                                                                
+                         
         
+                                                          
         self.out_act = nn.GELU() if self.oact else nn.Identity()
         self.out_proj = Linear(self.d_inner, self.d_model, bias=bias, channel_first=channel_first)
         self.dropout = nn.Dropout(dropout) if dropout > 0. else nn.Identity()
@@ -1216,23 +1560,35 @@ class SS2Dv2:
             self.A_logs, self.Ds, self.dt_projs_weight, self.dt_projs_bias = mamba_init.init_dt_A_D(
                 self.d_state, self.dt_rank, self.d_inner, dt_scale, dt_init, dt_min, dt_max, dt_init_floor, k_group=self.k_group,
             )
+                                        
+                                        
+                              
+                                                
+                                              
         elif initialize in ["v1"]:
+                                              
             self.Ds = nn.Parameter(torch.ones((self.k_group * self.d_inner)))
-            self.A_logs = nn.Parameter(torch.randn((self.k_group * self.d_inner, self.d_state))) 
-            self.dt_projs_weight = nn.Parameter(0.1 * torch.randn((self.k_group, self.d_inner, self.dt_rank))) 
-            self.dt_projs_bias = nn.Parameter(0.1 * torch.randn((self.k_group, self.d_inner))) 
+            self.A_logs = nn.Parameter(torch.randn((self.k_group * self.d_inner, self.d_state)))                                                
+            self.dt_projs_weight = nn.Parameter(0.1 * torch.randn((self.k_group, self.d_inner, self.dt_rank)))                       
+            self.dt_projs_bias = nn.Parameter(0.1 * torch.randn((self.k_group, self.d_inner)))                       
         elif initialize in ["v2"]:
+                                              
             self.Ds = nn.Parameter(torch.ones((self.k_group * self.d_inner)))
-            self.A_logs = nn.Parameter(torch.zeros((self.k_group * self.d_inner, self.d_state))) 
+            self.A_logs = nn.Parameter(torch.zeros((self.k_group * self.d_inner, self.d_state)))                                                
             self.dt_projs_weight = nn.Parameter(0.1 * torch.rand((self.k_group, self.d_inner, self.dt_rank)))
             self.dt_projs_bias = nn.Parameter(0.1 * torch.rand((self.k_group, self.d_inner)))
         self.dt_projs.weight.data = self.dt_projs_weight.data.view(self.dt_projs.weight.shape)
+                                                                                          
         del self.dt_projs_weight
+                                
 
+                                                        
 
+                
         self.x_viewer = nn.Identity()
         self.xs_viewer = nn.Identity()
 
+              
         self.dts_viewer = nn.Identity()
         self.As_viewer = nn.Identity()
         self.Ds_viewer = nn.Identity()
@@ -1240,84 +1596,123 @@ class SS2Dv2:
         self.Cs_viewer = nn.Identity()
         self.delta_bias_viewer = nn.Identity()
 
+            
         self.ys_viewer = nn.Identity()
         self.y_viewer = nn.Identity()
 
     def forward_corev2(
         self,
         x: torch.Tensor=None, 
-        force_fp32=False, 
-        ssoflex=True, 
-        selective_scan_backend = None, 
+                                        
+        force_fp32=False,                   
+                                        
+        ssoflex=True,                                                  
+                                        
+        selective_scan_backend = None,                                       
+                                        
+                                
         scan_mode = "roate2d",
-        scan_force_torch = False, 
+                                                                  
+        scan_force_torch = False,                               
+                                        
         **kwargs,
     ):
-        assert selective_scan_backend in [None, "oflex", "mamba", "torch"] 
+                                                                    
+        assert selective_scan_backend in [None, "oflex", "mamba", "torch"]          
         _scan_mode = dict(cross2d=0, unidi=1, bidi=2, cascade2d=-1, roate2d=3).get(scan_mode, None) if isinstance(scan_mode, str) else scan_mode 
-        assert isinstance(_scan_mode, int) 
-        delta_softplus = True 
-        channel_first = self.channel_first 
-        to_fp32 = lambda *args: (_a.to(torch.float32) for _a in args) 
+                                  
+        assert isinstance(_scan_mode, int)                     
+        delta_softplus = True                           
+        channel_first = self.channel_first                                   
+        to_fp32 = lambda *args: (_a.to(torch.float32) for _a in args)                 
         force_fp32 = force_fp32 or ((not ssoflex) and self.training) 
+                                        
 
         if not channel_first:
             x = x.permute(0, 3, 1, 2).contiguous() 
+                                                             
 
-        B, D, H, W = x.shape 
-        N = self.d_state  
-        K, D, R = self.k_group, self.d_inner, self.dt_rank  
-        L = H * W 
+        B, D, H, W = x.shape                
+        N = self.d_state                    
+        K, D, R = self.k_group, self.d_inner, self.dt_rank                                                                                                                                                                        
+                                     
+        L = H * W           
 
+                                
         def selective_scan(u, delta, A, B, C, D=None, delta_bias=None, delta_softplus=True):
             return selective_scan_fn(u, delta, A, B, C, D, delta_bias, delta_softplus, ssoflex, backend=selective_scan_backend)
         
         if True:
             x = self.x_viewer(x)
+                                           
             xs = cross_scan_fn(x, in_channel_first=True, out_channel_first=True, scans=_scan_mode, force_torch=scan_force_torch) 
+                                                   
             xs = self.xs_viewer(xs)
 
+                                                                               
+                                                                                                                                 
             x_dbl = self.x_proj(xs.view(B, -1, L))
 
+                                                                                                         
+                                  
+                  
+                                                                 
 
+                                                       
             dts, Bs, Cs = torch.split(x_dbl.view(B, K, -1, L), [R, N, N], dim=2)
+                                                                 
 
+                                                      
 
-            dts = dts.contiguous().view(B, -1, L) 
+                                                                 
+            dts = dts.contiguous().view(B, -1, L)                 
             
-            dts = self.dt_projs(dts) 
+                                                            
+            dts = self.dt_projs(dts)                                     
 
 
-            xs = xs.view(B, -1, L) 
+                               
+            xs = xs.view(B, -1, L)              
             xs = self.xs_viewer(xs)
 
-            dts = dts.contiguous().view(B, -1, L) 
+            dts = dts.contiguous().view(B, -1, L)              
             dts = self.dts_viewer(dts)
 
-            As = -self.A_logs.to(torch.float).exp() 
-            Ds = self.Ds.to(torch.float) 
-            Bs = Bs.contiguous().view(B, K, N, L) 
-            Cs = Cs.contiguous().view(B, K, N, L) 
-            delta_bias = self.dt_projs_bias.view(-1).to(torch.float) 
+                          
+                                  
+            As = -self.A_logs.to(torch.float).exp()                 
+            Ds = self.Ds.to(torch.float)               
+            Bs = Bs.contiguous().view(B, K, N, L)               
+            Cs = Cs.contiguous().view(B, K, N, L)               
+            delta_bias = self.dt_projs_bias.view(-1).to(torch.float)        
 
+                         
             As = self.As_viewer(As)
             Ds = self.Ds_viewer(Ds)
             delta_bias = self.delta_bias_viewer(delta_bias)
 
+                            
             Bs = self.Bs_viewer(Bs)
             Cs = self.Cs_viewer(Cs)
 
+                                
             if force_fp32:
                 xs, dts, Bs, Cs = to_fp32(xs, dts, Bs, Cs)
 
+                                           
             ys: torch.Tensor = selective_scan(
                 xs, dts, As, Bs, Cs, Ds, delta_bias, delta_softplus
             ).view(B, K, -1, H, W) 
+                                    
             ys = self.ys_viewer(ys)
 
+                                  
             y: torch.Tensor = cross_merge_fn(ys, in_channel_first=True, out_channel_first=True, scans=_scan_mode, force_torch=scan_force_torch)
+                                                     
+                                                                        
             y = self.y_viewer(y)
 
+                            
             if getattr(self, "__DEBUG__", False):
                 setattr(self, "__data__", dict(
                     A_logs=self.A_logs, Bs=Bs, Cs=Cs, Ds=Ds,
@@ -1325,44 +1720,59 @@ class SS2Dv2:
                     ys=ys, y=y, H=H, W=W,
                 ))
 
+                                      
         y = y.view(B, -1, H, W)
         if not channel_first:
-            y = y.permute(0, 2, 3, 1).contiguous() 
+            y = y.permute(0, 2, 3, 1).contiguous()                  
 
+                    
         y = self.out_norm(y)
 
-        return y.to(x.dtype) 
+        return y.to(x.dtype)                
 
     def forwardv2(self, x: torch.Tensor, **kwargs):
         x = self.in_proj(x)  
+                                        
         
         if not self.disable_z:  
             x, z = x.chunk(2, dim=(1 if self.channel_first else -1))  
+                                                  
             
             if not self.disable_z_act:  
                 z = self.act(z)  
+                                                    
         
-        if not self.channel_first:  
+        if not self.channel_first:                          
             x = x.permute(0, 3, 1, 2).contiguous()  
+                                                   
         
         if self.with_dconv:  
             x = self.conv2d(x)  
+                                               
 
-        if not self.channel_first:  
+        if not self.channel_first:                          
             x = x.permute(0, 2, 3, 1).contiguous()  
+                        
         
         x = self.act(x)  
+                            
         
         y = self.forward_core(x)  
+                                                                                 
+                                           
         
         y = self.out_act(y)  
+                
         
         if not self.disable_z:  
             y = y * z  
+                                         
         
         out = self.dropout(self.out_proj(y))  
+                                           
         
         return out  
+                
 
     @staticmethod
     def get_outnorm(forward_type="", d_inner=192, channel_first=True):
@@ -1410,26 +1820,33 @@ class SS2Dv2:
             value = value[:-len(tag)]
         return ret, value
 
+                                
 class SS2D(nn.Module, SS2Dv0, SS2Dv2):
     def __init__(
         self,
+                                
         d_model=96,
         d_state=16,
         ssm_ratio=2.0,
         dt_rank="auto",
         act_layer=nn.SiLU,
-        d_conv=3, 
+                                
+        d_conv=3,                     
         conv_bias=True,
+                                
         dropout=0.0,
         bias=False,
+                                
         dt_min=0.001,
         dt_max=0.1,
         dt_init="random",
         dt_scale=1.0,
         dt_init_floor=1e-4,
         initialize="v0",
+                                
         forward_type="v2",
         channel_first=False,
+                                
         **kwargs,
     ):
         nn.Module.__init__(self)
@@ -1446,7 +1863,7 @@ class SS2D(nn.Module, SS2Dv0, SS2Dv2):
         elif forward_type.startswith("m"):
             self.__initm0__(**kwargs)
         else:
-            self.__initv2__(**kwargs) 
+            self.__initv2__(**kwargs)             
 
     def _load_from_state_dict(self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs):
         self_state_dict = self.state_dict()
@@ -1466,13 +1883,16 @@ class SS2D(nn.Module, SS2Dv0, SS2Dv2):
         return super()._load_from_state_dict(state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs)
 
 
+                                                       
 
+                                                                          
 class VSSBlock(nn.Module):
     def __init__(
         self,
         hidden_dim: int = 0,
         drop_path: float = 0,
         channel_first=False,
+                                       
         ssm_d_state: int = 16,
         ssm_ratio=2.0,
         ssm_dt_rank: Any = "auto",
@@ -1482,11 +1902,14 @@ class VSSBlock(nn.Module):
         ssm_drop_rate: float = 0,
         ssm_init="v0",
         forward_type="v2",
+                                       
         mlp_ratio=4.0,
         mlp_act_layer=nn.GELU,
         mlp_drop_rate: float = 0.0,
+                                       
         use_checkpoint: bool = False,
         post_norm: bool = False,
+                                       
         **kwargs,
     ):
         super().__init__()
@@ -1503,16 +1926,30 @@ class VSSBlock(nn.Module):
                 ssm_ratio=ssm_ratio,
                 dt_rank=ssm_dt_rank,
                 act_layer=ssm_act_layer,
+                                            
                 d_conv=ssm_conv,
                 conv_bias=ssm_conv_bias,
+                                            
                 dropout=ssm_drop_rate,
+                             
+                                            
+                               
+                             
+                                   
+                                    
+                                     
                 initialize=ssm_init,
+                                            
                 forward_type=forward_type,
                 channel_first=channel_first,
             )
         
         self.drop_path = DropPath(drop_path)
         
+                             
+                                                                             
+                                                          
+                                                                                                                                                              
 
     def _forward(self, input: torch.Tensor):
         x = input
@@ -1522,6 +1959,11 @@ class VSSBlock(nn.Module):
             else:
                 x = x + self.drop_path(self.op(self.norm(x)))
 
+                             
+                                
+                                                                       
+                   
+                                                                       
         
         return x
 
@@ -1532,6 +1974,8 @@ class VSSBlock(nn.Module):
             return self._forward(input)
 
 
+                                                                                                   
+                                                         
 class VSSM(nn.Module):
     def __init__(
         self, 
@@ -1540,6 +1984,7 @@ class VSSM(nn.Module):
         num_classes=1000, 
         depths=[2, 2, 9, 2], 
         dims=[96, 192, 384, 768], 
+                                   
         ssm_d_state=16,
         ssm_ratio=2.0,
         ssm_dt_rank="auto",
@@ -1549,19 +1994,23 @@ class VSSM(nn.Module):
         ssm_drop_rate=0.0, 
         ssm_init="v0",
         forward_type="v2",
+                                   
         mlp_ratio=4.0,
         mlp_act_layer=nn.GELU,
         mlp_drop_rate=0.0,
         gmlp=False,
+                                   
         drop_path_rate=0.1, 
         patch_norm=True, 
-        norm_layer="LN", 
-        downsample_version: str = "v2", 
-        patchembed_version: str = "v1", 
+        norm_layer="LN",               
+        downsample_version: str = "v2",                   
+        patchembed_version: str = "v1",             
         use_checkpoint=False,  
+                                   
         posembed=False,
         imgsize=224,
         _SS2D=SS2D,
+                                   
         **kwargs,
     ):
         super().__init__()
@@ -1572,7 +2021,7 @@ class VSSM(nn.Module):
             dims = [int(dims * 2 ** i_layer) for i_layer in range(self.num_layers)]
         self.num_features = dims[-1]
         self.dims = dims
-        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]  
+        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]                               
 
         _ACTLAYERS = dict(
             silu=nn.SiLU, 
@@ -1601,6 +2050,7 @@ class VSSM(nn.Module):
                 use_checkpoint=use_checkpoint,
                 downsample=downsample,
                 channel_first=self.channel_first,
+                                   
                 ssm_d_state=ssm_d_state,
                 ssm_ratio=ssm_ratio,
                 ssm_dt_rank=ssm_dt_rank,
@@ -1610,15 +2060,17 @@ class VSSM(nn.Module):
                 ssm_drop_rate=ssm_drop_rate,
                 ssm_init=ssm_init,
                 forward_type=forward_type,
+                                   
                 mlp_ratio=mlp_ratio,
                 mlp_act_layer=mlp_act_layer,
                 mlp_drop_rate=mlp_drop_rate,
                 gmlp=gmlp,
+                                   
                 _SS2D=_SS2D,
             ))
 
         self.classifier = nn.Sequential(OrderedDict(
-            norm=LayerNorm(self.num_features, channel_first=self.channel_first), 
+            norm=LayerNorm(self.num_features, channel_first=self.channel_first),          
             permute=(Permute(0, 3, 1, 2) if not self.channel_first else nn.Identity()),
             avgpool=nn.AdaptiveAvgPool2d(1),
             flatten=nn.Flatten(1),
@@ -1643,10 +2095,12 @@ class VSSM(nn.Module):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
 
+                                
     @torch.jit.ignore
     def no_weight_decay(self):
         return {"pos_embed"}
 
+                                
     @torch.jit.ignore
     def no_weight_decay_keywords(self):
         return {}
@@ -1654,14 +2108,15 @@ class VSSM(nn.Module):
 
     @staticmethod
     def _make_patch_embed(in_chans=3, embed_dim=96, patch_size=4, patch_norm=True, channel_first=False, version="v1"):
-        if version == "v1": 
+                                                                       
+        if version == "v1":                                                 
             return nn.Sequential(
                 nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_size, bias=True),
                 nn.Identity(),
                 (LayerNorm(embed_dim, in_channel_first=True, out_channel_first=channel_first) 
                     if patch_norm else (nn.Identity() if channel_first else Permute(0, 2, 3, 1))),
             )
-        elif version == "v2": 
+        elif version == "v2":                                  
             stride = patch_size // 2
             kernel_size = stride + 1
             padding = 1
@@ -1681,13 +2136,15 @@ class VSSM(nn.Module):
 
     @staticmethod
     def _make_downsample(dim=96, out_dim=192, norm=True, channel_first=False, version="v1"):
-        if version == "v1": 
+                                                                       
+        if version == "v1":                                      
+                                                                    
             return nn.Sequential(
                 PatchMerge(channel_first),
                 LayerNorm(4 * dim, channel_first=channel_first) if norm else nn.Identity(),
                 Linear(4 * dim, (2 * dim) if out_dim < 0 else out_dim, bias=False, channel_first=channel_first),
             )
-        elif version == "v2": 
+        elif version == "v2":                                                
             return nn.Sequential(
                 (nn.Identity() if channel_first else Permute(0, 3, 1, 2)),
                 nn.Conv2d(dim, out_dim, kernel_size=2, stride=2),
@@ -1695,7 +2152,7 @@ class VSSM(nn.Module):
                 LayerNorm(out_dim, in_channel_first=True, out_channel_first=channel_first) if norm else 
                     (nn.Identity() if channel_first else Permute(0, 2, 3, 1)),
             )
-        elif version == "v3": 
+        elif version == "v3":                      
             return nn.Sequential(
                 (nn.Identity() if channel_first else Permute(0, 3, 1, 2)),
                 nn.Conv2d(dim, out_dim, kernel_size=3, stride=2, padding=1),
@@ -1713,6 +2170,7 @@ class VSSM(nn.Module):
         use_checkpoint=False, 
         downsample=nn.Identity(),
         channel_first=False,
+                                     
         ssm_d_state=16,
         ssm_ratio=2.0,
         ssm_dt_rank="auto",       
@@ -1722,11 +2180,14 @@ class VSSM(nn.Module):
         ssm_drop_rate=0.0, 
         ssm_init="v0",
         forward_type="v2",
+                                     
         mlp_ratio=4.0,
         mlp_act_layer=nn.GELU,
         mlp_drop_rate=0.0,
+                                     
         **kwargs,
     ):
+                                                                       
         depth = len(drop_path)
         blocks = []
         for d in range(depth):
@@ -1765,11 +2226,14 @@ class VSSM(nn.Module):
         return x
 
     def flops(self, shape=(3, 224, 224), verbose=True):
+                                          
         supported_ops={
-            "aten::silu": None, 
-            "aten::neg": None, 
-            "aten::exp": None, 
-            "aten::flip": None, 
+            "aten::silu": None,                             
+            "aten::neg": None,                             
+            "aten::exp": None,                             
+            "aten::flip": None,                                
+                                               
+                                                
             "prim::PythonOp.SelectiveScanCuda": partial(selective_scan_flop_jit, backend="prefixsum", verbose=verbose),
         }
 
@@ -1784,6 +2248,7 @@ class VSSM(nn.Module):
         return sum(Gflops.values()) * 1e9
         return f"params {params} GFLOPs {sum(Gflops.values())}"
 
+                                                   
     def _load_from_state_dict(self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs):
 
         def check_name(src, state_dict: dict = state_dict, strict=False):
@@ -1828,6 +2293,8 @@ class VSSM(nn.Module):
         return super()._load_from_state_dict(state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs)
 
 
+                           
+                     
 class Backbone_VSSM(VSSM):
     def __init__(self, out_indices=(0, 1, 2, 3), pretrained=None, norm_layer="ln", **kwargs):
         kwargs.update(norm_layer=norm_layer)
@@ -1864,7 +2331,7 @@ class Backbone_VSSM(VSSM):
         x = self.patch_embed(x)
         outs = []
         for i, layer in enumerate(self.layers):
-            o, x = layer_forward(layer, x) 
+            o, x = layer_forward(layer, x)               
             if i in self.out_indices:
                 norm_layer = getattr(self, f'outnorm{i}')
                 out = norm_layer(o)
@@ -1878,7 +2345,9 @@ class Backbone_VSSM(VSSM):
         return outs
 
 
-
+                                                          
+         
+                                                          
 
 from timm.models import register_model
 
@@ -2057,6 +2526,7 @@ def vmamba_base_s1l20(pretrained=False, channel_first=True, **kwargs):
         model.load_state_dict(load_checkpoint("https://github.com/MzeroMiko/VMamba/releases/download/%23v2cls/vssm1_base_0229s_ckpt_epoch_225.pth"))
     return model
 
+                       
 def get_val_loader(batch_size=64, root="./val", img_size=224, sequential=True, num_workers=0):
     from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
     from torchvision import transforms, datasets
@@ -2083,6 +2553,7 @@ def get_val_loader(batch_size=64, root="./val", img_size=224, sequential=True, n
     )
     return data_loader
 
+                                   
 @torch.no_grad()
 def validate(data_loader, model, amp_enable=True, print_freq=100000):
     from timm.utils import accuracy, AverageMeter
@@ -2100,17 +2571,23 @@ def validate(data_loader, model, amp_enable=True, print_freq=100000):
         images = images.cuda(non_blocking=True)
         target = target.cuda(non_blocking=True)
 
+                        
         with torch.cuda.amp.autocast(enabled=amp_enable):
             output = model(images)
 
+                                          
         loss = criterion(output, target)
         acc1, acc5 = accuracy(output, target, topk=(1, 5))
 
+                                    
+                                    
+                                    
 
         loss_meter.update(loss.item(), target.size(0))
         acc1_meter.update(acc1.item(), target.size(0))
         acc5_meter.update(acc5.item(), target.size(0))
 
+                              
         batch_time.update(time.time() - end)
         end = time.time()
 
@@ -2123,8 +2600,10 @@ def validate(data_loader, model, amp_enable=True, print_freq=100000):
                 f'Acc@1 {acc1_meter.val:.3f} ({acc1_meter.avg:.3f})\t'
                 f'Acc@5 {acc5_meter.val:.3f} ({acc5_meter.avg:.3f})\t'
                 f'Mem {memory_used:.0f}MB')
+                                                                        
     return acc1_meter.avg, acc5_meter.avg, loss_meter.avg
 
+                                           
 @torch.no_grad()
 def throughput(data_loader, model):
     model.cuda()
@@ -2132,10 +2611,10 @@ def throughput(data_loader, model):
     for idx, (images, _) in enumerate(data_loader):
         images = images.cuda(non_blocking=True)
         batch_size = images.shape[0]
-        for i in range(50): 
+        for i in range(50):                                
             model(images)
-        torch.cuda.synchronize() 
-        print(f"throughput averaged with 30 times") 
+        torch.cuda.synchronize()                   
+        print(f"throughput averaged with 30 times")                 
         tic1 = time.time()
         for i in range(30):
             model(images)
@@ -2144,6 +2623,7 @@ def throughput(data_loader, model):
         print(f"batch_size {batch_size} throughput {30 * batch_size / (tic2 - tic1)}")
         return
 
+                          
 def do_validate(name="vmamba_tiny_s1l8", data="/media/memfs/ImageNet_ILSVRC2012/val"):
     from timm import create_model
     if True:
@@ -2155,6 +2635,7 @@ def do_validate(name="vmamba_tiny_s1l8", data="/media/memfs/ImageNet_ILSVRC2012/
     acc1_ema, acc5_ema, loss_ema = validate(data_loader_val, model)
     print(acc1_ema, acc5_ema, loss_ema)
 
+             
 def do_throughput(name="vmamba_tiny_s1l8", data="/media/memfs/ImageNet_ILSVRC2012/val"):
     from timm import create_model
     if True:
@@ -2167,10 +2648,26 @@ def do_throughput(name="vmamba_tiny_s1l8", data="/media/memfs/ImageNet_ILSVRC201
 
 
 if __name__ == "__main__":
+                                                                                                 
+                                                                                                 
+                                                                                                 
+                                                                                              
+                                                                                                
+                                                                                               
+                                                                                              
+                                                                                 
+                                                                                               
     
 
+                                          
+                                           
+                                          
+                                       
+                                         
+                                        
     do_throughput("vmamba_tiny_s1l8")
+                                         
+                                        
     
-
 
 

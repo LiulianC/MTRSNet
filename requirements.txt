@@ -1,0 +1,10 @@
+einops
+numpy
+Pillow
+timm
+torch
+torchvision
+tqdm
+triton
+mamba-ssm
+causal-conv1d

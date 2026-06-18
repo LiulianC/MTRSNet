@@ -6,58 +6,77 @@ import torch.nn as nn
 
 class Conv2DLayer(nn.Sequential):
     def __init__(self, in_channels, out_channels, k_size, stride, padding=None, dilation=1, norm=None, act=None, bias=False):
-        super(Conv2DLayer, self).__init__()  
+        super(Conv2DLayer, self).__init__()                                                                                 
+                                                                          
         if padding is not None:
             padding = padding
         else:
-            padding = dilation * (k_size - 1) // 2 
-        self.add_module('conv2d', nn.Conv2d(in_channels, out_channels, k_size, stride, padding, dilation=dilation, bias=bias, padding_mode='reflect')) 
-        if norm is not None: 
+            padding = dilation * (k_size - 1) // 2                                                            
+                                                                         
+        self.add_module('conv2d', nn.Conv2d(in_channels, out_channels, k_size, stride, padding, dilation=dilation, bias=bias, padding_mode='reflect'))                                   
+        if norm is not None:               
             self.add_module('norm', norm(out_channels))
         if act is not None:
             self.add_module('act', act)
 
 class SElayer(nn.Module):
+                                                               
+                                     
     def __init__(self, channel, reduction=16):
         super(SElayer, self).__init__()
-        self.avg_pool = nn.AdaptiveAvgPool2d(1) 
-        self.se = nn.Sequential( 
+                                                        
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)                                                                                                  
+        self.se = nn.Sequential(                      
             nn.Linear(channel, channel // reduction),
             nn.LayerNorm(channel//reduction),
-            nn.ReLU(inplace=True), 
+            nn.ReLU(inplace=True),                                                                                                                                   
             nn.Linear(channel // reduction, channel),
             nn.Sigmoid()
         )
+                                                     
+                                             
 
     def forward(self, x):
         b, c, _, _ = x.shape
         y = self.avg_pool(x).view(b, c)
         y = self.se(y).view(b, c, 1, 1)
         return x * y
+                                                                                               
     
 
+                    
 class ResidualBlock(nn.Module):
-    def __init__(self, channel, norm=nn.InstanceNorm2d, dilation=1, bias=False, se_reduction=None, res_scale=1, act=nn.ReLU(True)):
+                                                                
+                                                                   
+                                         
+    def __init__(self, channel, norm=nn.InstanceNorm2d, dilation=1, bias=False, se_reduction=None, res_scale=1, act=nn.ReLU(True)):                 
         super(ResidualBlock, self).__init__()
 
         self.conv1 = Conv2DLayer(channel, channel, k_size=3, stride=1, dilation=dilation, norm=norm, act=act, bias=bias)
         self.conv2 = Conv2DLayer(channel, channel, k_size=3, stride=1, dilation=dilation, norm=norm, act=None, bias=None)
         self.se_layer = None
-        self.res_scale = res_scale 
-        if se_reduction is not None: 
+        self.res_scale = res_scale                                                                       
+        if se_reduction is not None:                                                                                                                                                               
             self.se_layer = SElayer(channel, se_reduction)
 
     def forward(self, x):
-        res = x 
+        res = x     
         x = self.conv1(x)
         x = self.conv2(x)
         if self.se_layer:
-            x = self.se_layer(x) 
+            x = self.se_layer(x)        
         x = x * self.res_scale 
-        out = x + res 
+        out = x + res       
         return out
 
+                      
+                     
+                            
+              
 class ChannelAttention(nn.Module):
+                                 
+                                     
+                                                                             
     def __init__(self, channel, reduction=16):
         super(ChannelAttention, self).__init__()
 
@@ -76,7 +95,10 @@ class ChannelAttention(nn.Module):
         out = avg_output + max_output
         return self.sigmoid(out)
 
+                                           
 class SpatialAttention(nn.Module):
+                                  
+                                                                            
     def __init__(self, kernel_size=7):
         super(SpatialAttention, self).__init__()
         assert kernel_size in [3, 7], 'kernel size must be 3 or 7.'
@@ -86,14 +108,17 @@ class SpatialAttention(nn.Module):
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
-        avg_out = torch.mean(x, dim=1, keepdim=True) 
-        max_out, _ = torch.max(x, dim=1, keepdim=True) 
+        avg_out = torch.mean(x, dim=1, keepdim=True)            
+        max_out, _ = torch.max(x, dim=1, keepdim=True)            
 
-        pool_out = torch.cat([avg_out, max_out], dim=1) 
-        x = self.conv(pool_out) 
-        return self.sigmoid(x) 
+        pool_out = torch.cat([avg_out, max_out], dim=1)            
+        x = self.conv(pool_out)     
+        return self.sigmoid(x)     
 
+             
 class CBAMlayer(nn.Module):
+                                                                    
+                                                                      
     def __init__(self, channel, reduction=16):
         super(CBAMlayer, self).__init__()
         self.channel_layer = ChannelAttention(channel, reduction)
@@ -104,7 +129,9 @@ class CBAMlayer(nn.Module):
         x = self.spatial_layer(x) * x
         return x
 
+                   
 class ResidualCbamBlock(nn.Module):
+                                                       
 
     def __init__(self, channel, norm=nn.InstanceNorm2d, dilation=1, bias=False, cbam_reduction=None, act=nn.ReLU(True)):
         super(ResidualCbamBlock, self).__init__()
@@ -125,29 +152,39 @@ class ResidualCbamBlock(nn.Module):
         out = x + res
         return out
     
+             
 class LaplacianPyramid(nn.Module):
+                                                  
+                                                                      
 
     def __init__(self, device, dim=3):
         super(LaplacianPyramid, self).__init__()
 
+                                                
         self.channel_dim = dim
         laplacian_kernel = np.array([[0, -1, 0],[-1, 4, -1],[0, -1, 0]])
 
-        laplacian_kernel = np.repeat(laplacian_kernel[None, None, :, :], dim, 0) 
+        laplacian_kernel = np.repeat(laplacian_kernel[None, None, :, :], dim, 0)                     
+                                    
 
 
+                                  
         self.kernel = torch.nn.Parameter(torch.FloatTensor(laplacian_kernel))
         self.register_buffer('kernel_init', torch.FloatTensor(laplacian_kernel).clone())
 
+                                   
         epsilon = 0.05
         with torch.no_grad():
             self.kernel.data.clamp_(self.kernel_init - epsilon, self.kernel_init + epsilon)
 
 
     def forward(self, x):
-        x0 = F.interpolate(x, scale_factor=0.125, mode='bilinear')
+                                     
+                                      
+        x0 = F.interpolate(x, scale_factor=0.125, mode='bilinear')          
         x1 = F.interpolate(x, scale_factor=0.25, mode='bilinear')
         x2 = F.interpolate(x, scale_factor=0.5, mode='bilinear')
+                                                                                                  
         lap_0 = F.conv2d(x0, self.kernel, groups=self.channel_dim, padding=1, stride=1, dilation=1)
         lap_1 = F.conv2d(x1, self.kernel, groups=self.channel_dim, padding=1, stride=1, dilation=1)
         lap_2 = F.conv2d(x2, self.kernel, groups=self.channel_dim, padding=1, stride=1, dilation=1)
@@ -155,33 +192,43 @@ class LaplacianPyramid(nn.Module):
         lap_0 = F.interpolate(lap_0, scale_factor=8, mode='bilinear')
         lap_1 = F.interpolate(lap_1, scale_factor=4, mode='bilinear')
         lap_2 = F.interpolate(lap_2, scale_factor=2, mode='bilinear')
+                                                               
+                                              
+                                          
 
-        return torch.cat([lap_0, lap_1, lap_2, lap_3], 1) 
+        return torch.cat([lap_0, lap_1, lap_2, lap_3], 1)                                                   
+                           
 
 class LRM(nn.Module):
 
     def __init__(self, device):
         super(LRM, self).__init__()
 
-        self.lap_pyramid = LaplacianPyramid(device, dim=6) 
+                          
+        self.lap_pyramid = LaplacianPyramid(device, dim=6)                                          
+                                                          
 
         self.det_conv0 = nn.Sequential(
             nn.Conv2d(in_channels=6, out_channels=32, kernel_size=3, stride=1, padding=1),
             nn.ReLU()
             )
 
+                            
         self.det_conv1 = ResidualBlock(channel=32, norm=None, se_reduction=2, res_scale=0.1)
         self.det_conv2 = ResidualBlock(channel=32, norm=None, se_reduction=2, res_scale=0.1)
         self.det_conv3 = ResidualBlock(channel=32, norm=None, se_reduction=2, res_scale=0.1)
         self.det_conv4 = ResidualBlock(channel=32, norm=None, se_reduction=2, res_scale=0.1)
+                
         self.det_conv4_1 = ResidualBlock(channel=32, norm=None, se_reduction=2, res_scale=0.1)
         self.det_conv4_2 = ResidualBlock(channel=32, norm=None, se_reduction=2, res_scale=0.1)
 
+                                                               
         self.det_conv5 = nn.Sequential(
             nn.Conv2d(in_channels=24, out_channels=32, kernel_size=3, stride=1, padding=1),
             nn.PReLU()
             )
 
+                              
         self.det_conv6 = ResidualBlock( channel=32, norm=None, se_reduction=2, res_scale=0.1, act=nn.PReLU())
         self.det_conv7 = ResidualBlock( channel=32, norm=None, se_reduction=2, res_scale=0.1, act=nn.PReLU())
         self.det_conv8 = ResidualBlock( channel=32, norm=None, se_reduction=2, res_scale=0.1, act=nn.PReLU())
@@ -189,9 +236,11 @@ class LRM(nn.Module):
         self.det_conv10 = ResidualBlock(channel=32, norm=None, se_reduction=2, res_scale=0.1, act=nn.PReLU())
         self.det_conv11 = ResidualBlock(channel=32, norm=None, se_reduction=2, res_scale=0.1, act=nn.PReLU())
 
+                      
         self.p_relu = nn.PReLU()
         self.relu = nn.ReLU()
 
+                                             
         self.det_conv_mask0 = nn.Sequential(
             nn.Conv2d(in_channels=32, out_channels=32, kernel_size= 3, stride= 1, padding= 1),
             nn.InstanceNorm2d(32),
@@ -201,37 +250,46 @@ class LRM(nn.Module):
             )        
 
     def forward(self, I):
+                            
+                                
+                                                        
 
-        x = torch.cat([I, I], 1) 
-        lap = self.lap_pyramid(x) 
+        x = torch.cat([I, I], 1)                                                  
+                                                        
+        lap = self.lap_pyramid(x)                                      
 
-        x = self.det_conv0(x) 
-        x = F.relu(self.det_conv1(x)) 
-        x = F.relu(self.det_conv2(x)) 
-        x = F.relu(self.det_conv3(x)) 
-        x = F.relu(self.det_conv4(x)) 
-        x = F.relu(self.det_conv4_1(x)) 
-        x = F.relu(self.det_conv4_2(x)) 
+                            
+                        
+        x = self.det_conv0(x)                   
+                                                 
+        x = F.relu(self.det_conv1(x))                  
+        x = F.relu(self.det_conv2(x))                  
+        x = F.relu(self.det_conv3(x))                  
+                                                 
+        x = F.relu(self.det_conv4(x))                  
+        x = F.relu(self.det_conv4_1(x))                  
+        x = F.relu(self.det_conv4_2(x))                  
 
-        lap = self.det_conv5(lap) 
-        lap = self.p_relu(self.det_conv6(lap)) 
-        lap = self.p_relu(self.det_conv7(lap)) 
-        lap = self.p_relu(self.det_conv8(lap)) 
-        c_map = self.det_conv_mask0(lap) 
-        lap = self.p_relu(self.det_conv9(lap))  
-        lap = self.p_relu(self.det_conv10(lap)) 
-        lap = self.p_relu(self.det_conv11(lap)) 
+                                
+        lap = self.det_conv5(lap)                                        
+                                                                                 
+        lap = self.p_relu(self.det_conv6(lap))                  
+        lap = self.p_relu(self.det_conv7(lap))                   
+        lap = self.p_relu(self.det_conv8(lap))                  
+                                                
+        c_map = self.det_conv_mask0(lap)                     
+                                                                                 
+        lap = self.p_relu(self.det_conv9(lap))                   
+        lap = self.p_relu(self.det_conv10(lap))                  
+        lap = self.p_relu(self.det_conv11(lap))                  
 
-        lap = lap * c_map 
+                                         
+        lap = lap * c_map                    
 
-        x = torch.cat([x, lap], 1)  
+                                                                  
+                                                                    
+        x = torch.cat([x, lap], 1)            
         return x,c_map
-
-
-
-
-
-
 
 
 import torch.fft as fft
@@ -269,6 +327,14 @@ class Toning(nn.Module):
 
 class Mapping(nn.Module):
     def __init__(self, in_features=3, hidden_features=256, hidden_layers=3, out_features=3, res=True):
+\
+\
+\
+\
+\
+\
+\
+           
         super(Mapping, self).__init__()
 
         self.res = res
@@ -323,9 +389,11 @@ class FrequencyProcessor(nn.Module):
         f_out = self.fuse(torch.cat([out, x_reconstructed], dim=1))
 
         return self.tone(f_out)
+                        
+                     
 
 
-
+                                   
 class ChannelAttention(nn.Module):
     def __init__(self, dim, num_heads, bias):
         super(ChannelAttention, self).__init__()
@@ -358,9 +426,12 @@ class ChannelAttention(nn.Module):
         out = self.project_out(out)
         return out
     
+                    
+                 
 
 
+                                
 
+                                                                           
 
-
-
+                        
