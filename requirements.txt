@@ -1,3 +1,11 @@
+# Reference environment
+# - Python 3.10 or 3.11 recommended.
+# - Install a CUDA-enabled PyTorch build that matches your local CUDA toolkit / nvcc.
+# - `mamba-ssm` and `causal-conv1d` are CUDA-version-sensitive extensions.
+#   Install them against the same CUDA build, preferably by following the
+#   official Mamba repository instructions and building from source when needed.
+#   The Mamba README uses `--no-build-isolation` for source installs.
+
 einops
 numpy
 opencv-python-headless

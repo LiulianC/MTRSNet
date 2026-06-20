@@ -42,13 +42,30 @@ The constructed benchmark is derived from the datasets below. The release only s
 
 ## Environment
 
-Install PyTorch and the CUDA stack for your machine first, then install the Python packages in `requirements.txt`.
+Recommended runtime:
+
+- Python 3.10 or 3.11
+- CUDA-enabled PyTorch that matches your local CUDA toolkit / `nvcc`
+- `mamba-ssm` and `causal-conv1d` built for the same CUDA stack
+- Linux with an NVIDIA GPU
+
+Install PyTorch and the CUDA stack first, then install the Python packages in `requirements.txt`.
 
 ```bash
 pip install -r requirements.txt
 ```
 
+If `mamba-ssm` or `causal-conv1d` do not have a matching wheel for your CUDA build, follow the official Mamba repository installation notes and install them against the existing CUDA-enabled PyTorch build. The Mamba repo documents the source-install path with `--no-build-isolation`; that is the route to use when a direct wheel install is not enough.
+
 `delight.py` needs OpenCV. `opencv-python-headless` is included in the requirements file so the helper can run on headless machines as well.
+
+Quick environment sanity check:
+
+```bash
+python -V
+python -c "import torch; print(torch.__version__); print(torch.version.cuda)"
+nvcc --version
+```
 
 ## Dataset Construction
 
@@ -86,7 +103,20 @@ The example manifests under `data/reflection_benchmark/splits/` show the release
 
 ## Inference
 
-Inference can be run directly with the shared checkpoint:
+Inference uses the supervised-style manifest loader. The manifest should provide `input_path` and `target_path`, and may also include `mask_path` and `normal_mask_path` if you want to reuse the released benchmark layout.
+
+Inputs:
+
+- `--manifest`: paired or pseudo-paired JSONL manifest
+- `--checkpoint`: trained `netG_T` checkpoint, including the released pretrain stage3 weight or a fine-tuned weight
+- `--split`: logical split name used for output naming
+
+Outputs:
+
+- PNG predictions in `--output-dir`, or in `outputs/<run-id>/predictions/<split>/` when `--output-dir` is omitted
+- `<split>_prediction_export_metadata.json` next to the prediction folder
+
+Example:
 
 ```bash
 python export_predictions.py \
@@ -99,7 +129,19 @@ python export_predictions.py \
 
 Training requires the reader to reconstruct the dataset first using the manifest format described above.
 
-Clean MAE pretraining:
+### Clean MAE Pretraining
+
+Inputs:
+
+- `--manifest`: clean-image JSONL rows with `input_path`
+
+Outputs:
+
+- `--save-dir/mtrs_improved_pretrain_latest.pth`
+- `--output-dir/pretrain_log.csv`
+- optional mid-run overwrite checkpoints if `--save-interval-updates` is set
+
+Example:
 
 ```bash
 python pretrain_mae.py \
@@ -110,7 +152,30 @@ python pretrain_mae.py \
   --batch-size 48
 ```
 
-Clean-mask-corruption fine-tuning:
+### Formal Training
+
+`train_inpaint.py` accepts three modes:
+
+- `supervised`: `--train-manifest` and `--val-manifest` must point to paired manifests with `input_path` and `target_path`. `mask_path` and `normal_mask_path` are used when present.
+- `clean_mask_corruption`: `--clean-train-manifest` and `--clean-val-manifest` provide clean source images, while `--mask-bank-train-manifest` and `--mask-bank-val-manifest` provide the corruption mask bank.
+- `corruption`: a clean or paired manifest is used to synthesize random FOV corruption masks.
+
+Inputs:
+
+- `--results-root` or `--save-dir`
+- one or more manifests depending on `--mode`
+- `--pretrained` when starting clean-mask-corruption fine-tuning from the released stage3 checkpoint
+
+Outputs:
+
+- `results-root/run-id/checkpoints/mtrs_improved_inpaint_latest.pth`
+- `results-root/run-id/checkpoints/mtrs_improved_inpaint_best.pth` when validation selects a best checkpoint
+- `results-root/run-id/train_log.csv`
+- `results-root/run-id/val_metrics.csv`
+- `results-root/run-id/protocol.json`
+- `results-root/run-id/samples/train/*.png` and `results-root/run-id/samples/val/*.png`
+
+Example clean-mask-corruption run:
 
 ```bash
 python train_inpaint.py \
@@ -125,7 +190,7 @@ python train_inpaint.py \
   --batch-size 1
 ```
 
-Supervised training:
+Example supervised run:
 
 ```bash
 python train_inpaint.py \
